@@ -10,50 +10,81 @@ namespace Overvecht
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
+            AddAllArgsConstructorAttribute(context);
+            AddBuilderAttribute(context);
+        }
+
+        private static void AddAllArgsConstructorAttribute(IncrementalGeneratorInitializationContext context)
+        {
             var pipeline = context.SyntaxProvider.ForAttributeWithMetadataName(
-                fullyQualifiedMetadataName: typeof(AllArgsConstructorAttribute).FullName!,
-                predicate: static (syntaxNode, cancellationToken) => syntaxNode is ClassDeclarationSyntax,
-                transform: static (context, cancellationToken) =>
-                {
-                    if (context.TargetNode is ClassDeclarationSyntax @class)
-                    {
-                        var properties = @class.Members.OfType<PropertyDeclarationSyntax>()
-                            .Select(p => new PropertyModel(p.Type.ToString(), p.Identifier.ToString()))
-                            .ToArray();
-                        var @namespace = @class.Parent as BaseNamespaceDeclarationSyntax;
-                        var namespaceName = @namespace?.Name.GetText().ToString() ?? "";
+                            fullyQualifiedMetadataName: typeof(AllArgsConstructorAttribute).FullName!,
+                            predicate: static (syntaxNode, cancellationToken) => syntaxNode is ClassDeclarationSyntax,
+                            transform: static (context, cancellationToken) =>
+                            {
+                                var classModel = context.TargetNode.BuildClassModel();
+                                if (classModel == null) return null;
+                                return new AllArgsConstructorModel(classModel, AccessModifier.Public);
+                            }
+                        );
 
-                        return new ClassModel(namespaceName, @class.Identifier.ToString(), properties);
-                    }
-                    return null;
-                }
-            );
+            context.RegisterSourceOutput(pipeline, GenerateSourceCode);
+        }
 
-            context.RegisterSourceOutput(pipeline, static (context, model) =>
-            {
-                if(model == null) return;
-                var sourceText = SourceText.From($$"""
-                namespace {{model.Namespace}};
-                partial class {{model.ClassName}}
+        private static void AddBuilderAttribute(IncrementalGeneratorInitializationContext context)
+        {
+            var pipeline = context.SyntaxProvider.ForAttributeWithMetadataName(
+                            fullyQualifiedMetadataName: typeof(BuilderAttribute).FullName!,
+                            predicate: static (syntaxNode, cancellationToken) => syntaxNode is ClassDeclarationSyntax,
+                            transform: static (context, cancellationToken) =>
+                            {
+                                var classModel = context.TargetNode.BuildClassModel();
+                                if (classModel == null) return null;
+                                return new AllArgsConstructorModel(classModel, AccessModifier.Private);
+                            }
+                        );
+
+            context.RegisterSourceOutput(pipeline, GenerateSourceCode);
+        }
+
+        private static void GenerateSourceCode(SourceProductionContext context, AllArgsConstructorModel? model)
+        {
+            if (model == null) return;
+            var sourceText = SourceText.From($$"""
+                namespace {{model.Class.Namespace}};
+                partial class {{model.Class.ClassName}}
                 {
-                    public {{model.ClassName}}(
-                        {{string.Join(", ", model.Properties.Select(
-                                p => $"{p.Type} c_{p.Name}"
-                            ))}}
+                    {{model.AccessModifier.ToCSharpAccessModifier()}} {{model.Class.ClassName}}(
+                        {{string.Join(", ", model.Class.Properties.Select(
+                            p => $"{p.Type} c_{p.Name}"
+                        ))}}
                     )
                     {
-                        {{
-                                string.Join("\r\n", model.Properties.Select(p => $"{p.Name} = c_{p.Name};"))
-                            }}
+                        {{string.Join("\r\n", model.Class.Properties.Select(p => $"{p.Name} = c_{p.Name};"))}}
                     }
                 }
                 """, Encoding.UTF8);
 
-                context.AddSource($"{model.ClassName}.AllArgs.g.cs", sourceText);
-            });
+            context.AddSource($"{model.Class.Namespace}.{model.Class.ClassName}.AllArgs.g.cs", sourceText);
         }
     }
 
-    internal record ClassModel(string Namespace, string ClassName, PropertyModel[] Properties);
-    internal record PropertyModel(string Type, string Name);
+    internal record AllArgsConstructorModel(ClassModel Class, AccessModifier AccessModifier);
+
+}
+internal static class SyntaxNodeExtensions
+{
+    internal static ClassModel? BuildClassModel(this SyntaxNode syntaxNode)
+    {
+        if (syntaxNode is ClassDeclarationSyntax @class)
+        {
+            var properties = @class.Members.OfType<PropertyDeclarationSyntax>()
+                .Select(p => new PropertyModel(p.Type.ToString(), p.Identifier.ToString()))
+                .ToArray();
+            var @namespace = @class.Parent as BaseNamespaceDeclarationSyntax;
+            var namespaceName = @namespace?.Name.GetText().ToString() ?? "";
+
+            return new ClassModel(namespaceName, @class.Identifier.ToString(), properties);
+        }
+        return null;
+    }
 }
