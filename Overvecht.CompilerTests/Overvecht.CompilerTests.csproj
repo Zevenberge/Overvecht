@@ -7,7 +7,6 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
-    <GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,19 +21,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <!--<PackageReference Include="Microsoft.Net.Compilers.Toolset" Version="4.8.0">
-          <PrivateAssets>all</PrivateAssets>
-          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>-->
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Overvecht\Overvecht.csproj" 
-      OutputItemType="Analyzer" 
-      PrivateAssets="all" 
-      ReferenceOutputAssembly="false">
-    </ProjectReference>
-    <ProjectReference Include="..\Overvecht.Attributes\Overvecht.Attributes.csproj" />
+    <ProjectReference Include="..\Overvecht\Overvecht.csproj" OutputItemType="Analyzer" />
   </ItemGroup>
 
 </Project>
